@@ -1,0 +1,625 @@
+{%- comment -%}
+  FUUL Product Detail Page — faithful reproduction of the Figma design.
+  Chrome (announcement/header/cart-drawer) is intentionally left to the theme.
+  Marketing copy for bundles / subscription / accordions is exposed via schema
+  settings (defaults match the design). Add-to-cart is wired to the real product
+  form so the theme cart drawer opens on submit.
+{%- endcomment -%}
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link
+  href="https://fonts.googleapis.com/css2?family=Dongle:wght@300;400;700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap"
+  rel="stylesheet"
+>
+
+{%- liquid
+  assign product = section.settings.product | default: product
+  assign variant = product.selected_or_first_available_variant
+  assign can_add = false
+  if variant.available
+    assign can_add = true
+  endif
+
+  assign uses_selling_plans = false
+  if product.selling_plan_groups.size > 0
+    assign uses_selling_plans = true
+    assign first_plan = product.selling_plan_groups.first.selling_plans.first
+  endif
+
+  assign form_id = 'fuul-product-form-' | append: section.id
+-%}
+
+<section class="fuul-pdp color-{{ section.settings.color_scheme }}" data-section-id="{{ section.id }}">
+  <div class="fuul-pdp__inner">
+
+    {%- comment -%} ============ GALLERY ============ {%- endcomment -%}
+    <div class="fuul-gallery" data-fuul-gallery>
+      {%- if product.media.size > 0 -%}
+        <div class="fuul-gallery__thumbs">
+          {%- for media in product.media limit: 6 -%}
+            <button
+              type="button"
+              class="fuul-gallery__thumb{% if forloop.first %} is-active{% endif %}"
+              data-fuul-thumb
+              data-src="{{ media.preview_image | image_url: width: 1200 }}"
+              aria-label="View image {{ forloop.index }}"
+            >
+              <img
+                src="{{ media.preview_image | image_url: width: 200 }}"
+                alt="{{ media.alt | escape }}"
+                width="100"
+                height="100"
+                loading="lazy"
+              >
+            </button>
+          {%- endfor -%}
+        </div>
+        <div class="fuul-gallery__main">
+          <img
+            data-fuul-main
+            src="{{ product.featured_media.preview_image | image_url: width: 1200 }}"
+            alt="{{ product.featured_media.alt | escape }}"
+            width="600"
+            height="600"
+          >
+        </div>
+      {%- else -%}
+        {%- assign fallback = 'fuul-bundle-1.png,fuul-bundle-2.png,fuul-bundle-4.png' | split: ',' -%}
+        <div class="fuul-gallery__thumbs">
+          {%- for img in fallback -%}
+            <button
+              type="button"
+              class="fuul-gallery__thumb{% if forloop.first %} is-active{% endif %}"
+              data-fuul-thumb
+              data-src="{{ img | asset_url }}"
+              aria-label="View image {{ forloop.index }}"
+            >
+              <img src="{{ img | asset_url }}" alt="" width="100" height="100" loading="lazy">
+            </button>
+          {%- endfor -%}
+        </div>
+        <div class="fuul-gallery__main">
+          <img data-fuul-main src="{{ 'fuul-bundle-1.png' | asset_url }}" alt="{{ product.title | escape }}" width="600" height="600">
+        </div>
+      {%- endif -%}
+    </div>
+
+    {%- comment -%} ============ INFO COLUMN ============ {%- endcomment -%}
+    <div class="fuul-info">
+
+      {%- comment -%} rating + title + subtitle {%- endcomment -%}
+      <div class="fuul-head">
+        <div class="fuul-rating">
+          <img src="{{ 'fuul-stars.svg' | asset_url }}" alt="5 out of 5 stars" width="82" height="14">
+          <span class="fuul-rating__text">{{ section.settings.rating_text }}</span>
+        </div>
+        <h1 class="fuul-title">{{ product.title | default: 'FUUL Protein Cookie Dough Bites - Chocolate Chip' }}</h1>
+        <p class="fuul-subtitle">{{ section.settings.subtitle }}</p>
+      </div>
+
+      {%- comment -%} feature checklist {%- endcomment -%}
+      {%- assign features = section.settings.features | newline_to_br | split: '<br />' -%}
+      <ul class="fuul-features">
+        {%- for feature in features -%}
+          {%- assign f = feature | strip -%}
+          {%- if f != blank -%}
+            <li class="fuul-features__item">
+              <img src="{{ 'fuul-check.svg' | asset_url }}" alt="" width="32" height="32">
+              <span>{{ f }}</span>
+            </li>
+          {%- endif -%}
+        {%- endfor -%}
+      </ul>
+
+      <hr class="fuul-divider">
+
+      {%- comment -%} ============ BUNDLE SELECTOR ============ {%- endcomment -%}
+      <h2 class="fuul-section-title">{{ section.settings.bundle_heading }}</h2>
+      <div class="fuul-bundles" role="radiogroup" aria-label="{{ section.settings.bundle_heading | escape }}">
+
+        {%- comment -%} bundle 1 {%- endcomment -%}
+        <label class="fuul-bundle" data-fuul-bundle data-quantity="1">
+          <input type="radio" name="fuul-bundle" value="1" hidden>
+          <span class="fuul-bundle__label">{{ section.settings.b1_label }}</span>
+          <span class="fuul-bundle__line"></span>
+          <img class="fuul-bundle__img" src="{{ 'fuul-bundle-1.png' | asset_url }}" alt="" width="120" height="120" loading="lazy">
+          <span class="fuul-bundle__price">{{ section.settings.b1_price }}</span>
+        </label>
+
+        {%- comment -%} bundle 2 (Most Popular, default) {%- endcomment -%}
+        <label class="fuul-bundle fuul-bundle--popular is-selected" data-fuul-bundle data-quantity="2">
+          <span class="fuul-bundle__badge fuul-bundle__badge--popular">{{ section.settings.b2_badge }}</span>
+          <input type="radio" name="fuul-bundle" value="2" checked hidden>
+          <span class="fuul-bundle__label">{{ section.settings.b2_label }}</span>
+          <span class="fuul-bundle__line"></span>
+          <span class="fuul-pill fuul-pill--cream">{{ section.settings.b2_save }}</span>
+          <img class="fuul-bundle__img" src="{{ 'fuul-bundle-2.png' | asset_url }}" alt="" width="120" height="120" loading="lazy">
+          <span class="fuul-bundle__price">{{ section.settings.b2_price }}</span>
+          <span class="fuul-bundle__compare">{{ section.settings.b2_compare }}</span>
+        </label>
+
+        {%- comment -%} bundle 4 (Best Value) {%- endcomment -%}
+        <label class="fuul-bundle fuul-bundle--value" data-fuul-bundle data-quantity="4">
+          <span class="fuul-bundle__badge fuul-bundle__badge--value">{{ section.settings.b3_badge }}</span>
+          <input type="radio" name="fuul-bundle" value="4" hidden>
+          <span class="fuul-bundle__label">{{ section.settings.b3_label }}</span>
+          <span class="fuul-bundle__line"></span>
+          <span class="fuul-bundle__sub">{{ section.settings.b3_sublabel }}</span>
+          <span class="fuul-pill fuul-pill--cream">{{ section.settings.b3_save }}</span>
+          <img class="fuul-bundle__img" src="{{ 'fuul-bundle-4.png' | asset_url }}" alt="" width="120" height="120" loading="lazy">
+          <span class="fuul-bundle__price">{{ section.settings.b3_price }}</span>
+          <span class="fuul-pill fuul-pill--serving">
+            <img src="{{ 'fuul-leaf.svg' | asset_url }}" alt="" width="13" height="13">
+            {{ section.settings.b3_serving }}
+          </span>
+        </label>
+      </div>
+
+      {%- comment -%} ============ AUTOSHIP ============ {%- endcomment -%}
+      <h2 class="fuul-section-title">{{ section.settings.autoship_heading }}</h2>
+      <div class="fuul-plans" role="radiogroup" aria-label="{{ section.settings.autoship_heading | escape }}">
+
+        {%- comment -%} Subscribe & Save (default) {%- endcomment -%}
+        <label class="fuul-plan fuul-plan--sub is-selected" data-fuul-plan data-selling-plan="{{ first_plan.id }}">
+          <input type="radio" name="fuul-plan" value="subscribe" checked hidden>
+          <div class="fuul-plan__top">
+            <span class="fuul-radio" aria-hidden="true"></span>
+            <div class="fuul-plan__info">
+              <span class="fuul-plan__name">{{ section.settings.sub_title }}</span>
+              <span class="fuul-plan__meta">{{ section.settings.sub_billing }}</span>
+            </div>
+            <span class="fuul-pill fuul-pill--gold">{{ section.settings.sub_save }}</span>
+            <div class="fuul-plan__price">
+              <span class="fuul-plan__now">{{ section.settings.sub_price }}</span>
+              <span class="fuul-plan__was">{{ section.settings.sub_compare }}</span>
+            </div>
+          </div>
+          <hr class="fuul-plan__rule">
+          <ul class="fuul-plan__perks">
+            {%- assign perks = section.settings.sub_perks | newline_to_br | split: '<br />' -%}
+            {%- for perk in perks -%}
+              {%- assign p = perk | strip -%}
+              {%- if p != blank -%}
+                <li><img src="{{ 'fuul-check-sm.svg' | asset_url }}" alt="" width="14" height="9">{{ p }}</li>
+              {%- endif -%}
+            {%- endfor -%}
+          </ul>
+        </label>
+
+        {%- comment -%} One time {%- endcomment -%}
+        <label class="fuul-plan fuul-plan--once" data-fuul-plan data-selling-plan="">
+          <input type="radio" name="fuul-plan" value="once" hidden>
+          <div class="fuul-plan__top">
+            <span class="fuul-radio" aria-hidden="true"></span>
+            <div class="fuul-plan__info">
+              <span class="fuul-plan__name">{{ section.settings.once_title }}</span>
+              <span class="fuul-plan__meta">{{ section.settings.once_billing }}</span>
+            </div>
+            <div class="fuul-plan__price">
+              <span class="fuul-plan__now">{{ section.settings.once_price }}</span>
+            </div>
+          </div>
+          <hr class="fuul-plan__rule">
+          <ul class="fuul-plan__perks fuul-plan__perks--muted">
+            {%- assign nos = section.settings.once_perks | newline_to_br | split: '<br />' -%}
+            {%- for no in nos -%}
+              {%- assign n = no | strip -%}
+              {%- if n != blank -%}
+                <li><img src="{{ 'fuul-x-sm.svg' | asset_url }}" alt="" width="13" height="13">{{ n }}</li>
+              {%- endif -%}
+            {%- endfor -%}
+          </ul>
+        </label>
+      </div>
+
+      {%- comment -%} ============ ADD TO CART ============ {%- endcomment -%}
+      <product-form-component
+        data-section-id="{{ section.id }}"
+        data-product-id="{{ product.id }}"
+        on:submit="/handleSubmit"
+        class="fuul-form"
+      >
+        <div class="visually-hidden" aria-live="assertive" role="status" aria-atomic="true" ref="liveRegion"></div>
+        {%- form 'product', product, id: form_id, novalidate: 'novalidate', data-type: 'add-to-cart-form' -%}
+          <input type="hidden" name="id" ref="variantId" value="{{ variant.id }}" data-fuul-variant {% unless variant.available %}disabled{% endunless %}>
+          <input type="hidden" name="quantity" value="2" data-fuul-quantity>
+          <input type="hidden" name="selling_plan" value="{{ first_plan.id }}" data-fuul-selling-plan>
+
+          <add-to-cart-component
+            ref="addToCartButtonContainer"
+            data-add-to-cart-animation="{{ settings.add_to_cart_animation }}"
+          >
+            <button
+              type="submit"
+              name="add"
+              ref="addToCartButton"
+              on:click="/handleClick"
+              class="button fuul-cta"
+              {% unless can_add %}disabled{% endunless %}
+            >
+              <span class="fuul-cta__text">{{ section.settings.cta_text }}</span>
+              <span class="add-to-cart__added">
+                <span class="svg-wrapper add-to-cart__added-icon">
+                  {{- 'icon-checkmark-burst.svg' | inline_asset_content -}}
+                </span>
+              </span>
+            </button>
+          </add-to-cart-component>
+        {%- endform -%}
+      </product-form-component>
+
+      {%- if section.settings.promo_bar != blank -%}
+        <div class="fuul-promo">{{ section.settings.promo_bar }}</div>
+      {%- endif -%}
+
+      {%- comment -%} ============ TRUST BADGES ============ {%- endcomment -%}
+      <div class="fuul-trust">
+        <div class="fuul-trust__item">
+          <img src="{{ 'fuul-badge-ships.svg' | asset_url }}" alt="" width="52" height="52">
+          <span>{{ section.settings.trust1 }}</span>
+        </div>
+        <div class="fuul-trust__item">
+          <img src="{{ 'fuul-badge-freeship.svg' | asset_url }}" alt="" width="52" height="52">
+          <span>{{ section.settings.trust2 }}</span>
+        </div>
+        <div class="fuul-trust__item">
+          <img src="{{ 'fuul-badge-secure.svg' | asset_url }}" alt="" width="52" height="52">
+          <span>{{ section.settings.trust3 }}</span>
+        </div>
+      </div>
+
+      {%- comment -%} ============ ACCORDIONS ============ {%- endcomment -%}
+      <div class="fuul-accordions">
+        {%- for i in (1..3) -%}
+          {%- assign heading_key = 'acc' | append: i | append: '_heading' -%}
+          {%- assign body_key = 'acc' | append: i | append: '_body' -%}
+          {%- assign acc_heading = section.settings[heading_key] -%}
+          {%- assign acc_body = section.settings[body_key] -%}
+          {%- if acc_heading != blank -%}
+            <details class="fuul-acc">
+              <summary class="fuul-acc__summary">
+                <span class="fuul-acc__title">{{ acc_heading }}</span>
+                <span class="fuul-acc__icon" aria-hidden="true">
+                  <img src="{{ 'fuul-caret.svg' | asset_url }}" alt="" width="13" height="13">
+                </span>
+              </summary>
+              <div class="fuul-acc__body">{{ acc_body }}</div>
+            </details>
+          {%- endif -%}
+        {%- endfor -%}
+      </div>
+
+    </div>
+  </div>
+</section>
+
+{% stylesheet %}
+.fuul-pdp {
+  --fuul-brown: #60413f;
+  --fuul-brown-muted: #907a79;
+  --fuul-yellow: #ffcb00;
+  --fuul-gold: #f7c638;
+  --fuul-yellow-soft: #fff2c6;
+  --fuul-cream: #f7eeda;
+  --fuul-green: #8cb90e;
+  --fuul-green-dark: #306c00;
+  --fuul-green-soft: #ecf2db;
+  --fuul-serif: 'Fraunces', 'Times New Roman', serif;
+  --fuul-sans: 'Dongle', ui-rounded, 'Trebuchet MS', sans-serif;
+  color: var(--fuul-brown);
+  font-family: var(--fuul-sans);
+}
+.fuul-pdp *, .fuul-pdp *::before, .fuul-pdp *::after { box-sizing: border-box; }
+
+.fuul-pdp__inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 52px 40px 80px;
+  display: grid;
+  grid-template-columns: minmax(0, 724px) 593px;
+  gap: 43px;
+  align-items: start;
+}
+
+/* ---------- GALLERY ---------- */
+.fuul-gallery {
+  position: sticky;
+  top: 24px;
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 24px;
+}
+.fuul-gallery__thumbs { display: flex; flex-direction: column; gap: 14px; }
+.fuul-gallery__thumb {
+  padding: 0; border: 2px solid transparent; background: #f4f4f4;
+  border-radius: 12px; overflow: hidden; cursor: pointer; aspect-ratio: 1;
+  transition: border-color .15s ease;
+}
+.fuul-gallery__thumb.is-active { border-color: var(--fuul-brown); }
+.fuul-gallery__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.fuul-gallery__main {
+  background: #f4f4f4; border-radius: 20px; overflow: hidden; aspect-ratio: 1;
+}
+.fuul-gallery__main img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ---------- INFO ---------- */
+.fuul-info { display: flex; flex-direction: column; align-items: flex-start; }
+
+.fuul-head { display: flex; flex-direction: column; gap: 18px; margin-bottom: 28px; }
+.fuul-rating { display: flex; align-items: center; gap: 12px; }
+.fuul-rating img { display: block; }
+.fuul-rating__text { font-weight: 700; font-size: 28px; line-height: .8; letter-spacing: .2px; }
+
+.fuul-title {
+  font-family: var(--fuul-serif); font-weight: 600; font-size: 38px; line-height: 1.08;
+  margin: 0; color: var(--fuul-brown); letter-spacing: -.3px;
+}
+.fuul-subtitle { font-size: 32px; line-height: .85; margin: 0; font-weight: 300; }
+.fuul-subtitle strong { font-weight: 700; }
+
+/* features */
+.fuul-features { list-style: none; margin: 0 0 28px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.fuul-features__item { display: flex; align-items: center; gap: 18px; font-size: 32px; line-height: .8; }
+.fuul-features__item img { display: block; flex: none; }
+
+.fuul-divider { width: 100%; border: 0; border-top: 1.5px dashed rgba(96, 65, 63, .35); margin: 0 0 28px; }
+
+.fuul-section-title { font-family: var(--fuul-sans); font-weight: 400; font-size: 42px; line-height: .8; margin: 0 0 18px; color: var(--fuul-brown); }
+
+/* pills */
+.fuul-pill {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  border-radius: 100px; padding: 8px 12px; font-weight: 700; font-size: 26px; line-height: .8;
+  white-space: nowrap;
+}
+.fuul-pill--cream { background: var(--fuul-yellow-soft); color: var(--fuul-brown); }
+.fuul-pill--gold { background: var(--fuul-yellow); color: var(--fuul-brown); }
+.fuul-pill--serving { background: var(--fuul-green-soft); color: var(--fuul-green-dark); font-size: 18px; padding: 6px 10px; width: 100%; }
+
+/* ---------- BUNDLES ---------- */
+.fuul-bundles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; width: 100%; align-items: end; margin-bottom: 42px; padding-top: 14px; }
+.fuul-bundle {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px;
+  background: #fff; border: 1.5px solid var(--fuul-brown); border-radius: 8px;
+  padding: 26px 20px; cursor: pointer; text-align: center; height: 100%; justify-content: flex-start;
+}
+.fuul-bundle__label { font-weight: 700; font-size: 36px; line-height: .8; }
+.fuul-bundle__line { width: 100%; height: 0; border-top: 2px solid var(--fuul-brown); }
+.fuul-bundle__sub { font-weight: 700; font-size: 24px; line-height: .8; }
+.fuul-bundle__img { width: 120px; height: 120px; object-fit: contain; display: block; }
+.fuul-bundle__price { font-weight: 700; font-size: 36px; line-height: .8; }
+.fuul-bundle__compare { font-weight: 300; font-size: 28px; line-height: .8; color: var(--fuul-brown-muted); text-decoration: line-through; }
+.fuul-bundle--value { background: var(--fuul-cream); }
+.fuul-bundle__badge {
+  position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
+  border-radius: 100px; padding: 8px 14px; font-weight: 700; font-size: 26px; line-height: .8; white-space: nowrap; z-index: 2;
+}
+.fuul-bundle__badge--popular { background: var(--fuul-yellow); color: var(--fuul-brown); }
+.fuul-bundle__badge--value { background: var(--fuul-green); color: #fff; }
+/* selected: chunky offset border */
+.fuul-bundle.is-selected { border-width: 2px 4px 4px 2px; }
+
+/* ---------- AUTOSHIP PLANS ---------- */
+.fuul-plans { display: flex; flex-direction: column; gap: 24px; width: 100%; margin-bottom: 24px; }
+.fuul-plan {
+  display: flex; flex-direction: column; gap: 18px; width: 100%;
+  background: #fff; border: 1.5px solid #b3b3b3; border-radius: 14px; padding: 30px 28px; cursor: pointer;
+}
+.fuul-plan--sub.is-selected { border: 6px solid var(--fuul-gold); padding: 26px 24px; }
+.fuul-plan__top { display: flex; align-items: center; gap: 18px; width: 100%; }
+.fuul-radio {
+  flex: none; width: 28px; height: 28px; border-radius: 50%;
+  border: 1.5px solid #cfc4bd; background: #fff; position: relative;
+}
+.fuul-plan.is-selected .fuul-radio { border-color: var(--fuul-gold); }
+.fuul-plan.is-selected .fuul-radio::after {
+  content: ''; position: absolute; inset: 4px; border-radius: 50%; background: var(--fuul-gold);
+}
+.fuul-plan__info { display: flex; flex-direction: column; gap: 14px; }
+.fuul-plan__name { font-weight: 700; font-size: 36px; line-height: .8; }
+.fuul-plan__meta { font-weight: 300; font-size: 28px; line-height: .8; }
+.fuul-plan__price { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 14px; text-align: right; }
+.fuul-plan__now { font-weight: 700; font-size: 36px; line-height: .8; }
+.fuul-plan__was { font-weight: 400; font-size: 28px; line-height: .8; color: var(--fuul-brown-muted); text-decoration: line-through; }
+.fuul-plan__rule { width: 100%; border: 0; border-top: 1px solid #e7ddd7; margin: 0; }
+.fuul-plan__perks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 18px; width: 100%; }
+.fuul-plan__perks li { display: flex; align-items: center; gap: 8px; font-size: 32px; line-height: .8; font-weight: 400; }
+.fuul-plan__perks li img { display: block; flex: none; }
+.fuul-plan__perks--muted li { font-weight: 300; color: rgba(96, 65, 63, .7); }
+
+/* ---------- CTA ---------- */
+.fuul-form { width: 100%; }
+.fuul-cta {
+  width: 100%; height: 72px; border: 0; border-radius: 100px; background: var(--fuul-brown);
+  color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--fuul-serif); font-weight: 600; font-size: 32px; line-height: 1; letter-spacing: .3px;
+  transition: transform .08s ease, filter .15s ease; position: relative;
+}
+.fuul-cta:hover { filter: brightness(1.08); }
+.fuul-cta:active { transform: translateY(1px); }
+.fuul-cta[disabled] { opacity: .5; cursor: not-allowed; }
+
+.fuul-promo {
+  width: 100%; margin-top: 24px; background: var(--fuul-yellow-soft); color: var(--fuul-brown);
+  border-radius: 14px; min-height: 52px; display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 32px; line-height: .8; text-align: center; padding: 12px 14px;
+}
+.fuul-promo p { margin: 0; }
+
+/* ---------- TRUST ---------- */
+.fuul-trust { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px; margin: 42px 0; }
+.fuul-trust__item { display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
+.fuul-trust__item img { display: block; }
+.fuul-trust__item span { font-size: 32px; line-height: .85; }
+
+/* ---------- ACCORDIONS ---------- */
+.fuul-accordions { width: 100%; display: flex; flex-direction: column; }
+.fuul-acc { width: 100%; border-top: 1.5px dashed rgba(96, 65, 63, .35); }
+.fuul-acc__summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 28px 0; user-select: none;
+}
+.fuul-acc__summary::-webkit-details-marker { display: none; }
+.fuul-acc__title { font-weight: 700; font-size: 36px; line-height: .8; }
+.fuul-acc__icon {
+  flex: none; width: 32px; height: 32px; border: 3px solid var(--fuul-brown); border-radius: 16px;
+  display: inline-flex; align-items: center; justify-content: center; transition: transform .2s ease;
+}
+.fuul-acc__icon img { display: block; }
+.fuul-acc[open] .fuul-acc__icon { transform: rotate(45deg); }
+.fuul-acc__body { padding: 0 0 28px; font-size: 30px; line-height: 1; }
+.fuul-acc__body p { margin: 0 0 .5em; }
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 1100px) {
+  .fuul-pdp__inner { grid-template-columns: minmax(0, 1fr); gap: 40px; padding: 32px 20px 60px; }
+  .fuul-gallery { position: static; max-width: 560px; margin: 0 auto; width: 100%; }
+  .fuul-info { max-width: 560px; margin: 0 auto; width: 100%; }
+}
+@media (max-width: 560px) {
+  .fuul-gallery { grid-template-columns: minmax(0, 1fr); }
+  .fuul-gallery__thumbs { order: 2; flex-direction: row; overflow-x: auto; gap: 8px; }
+  .fuul-gallery__thumb { width: 59px; flex: none; }
+  .fuul-gallery__main { order: 1; border-radius: 16px; }
+  .fuul-title { font-size: 30px; }
+
+  /* bundles become full-width rows on mobile */
+  .fuul-bundles { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .fuul-bundle {
+    flex-direction: row; align-items: center; justify-content: flex-start; gap: 14px;
+    text-align: left; padding: 12px 14px; height: auto;
+  }
+  .fuul-bundle__img { order: -1; width: 64px; height: 64px; }
+  .fuul-bundle__line { display: none; }
+  .fuul-bundle__label { font-size: 22px; }
+  .fuul-bundle__price { margin-left: auto; font-size: 22px; }
+  .fuul-bundle__compare { margin-left: auto; }
+  .fuul-bundle__badge { left: 14px; transform: none; }
+  .fuul-pill--serving { width: auto; }
+
+  .fuul-plan__name { font-size: 24px; }
+  .fuul-trust__item span { font-size: 20px; }
+}
+{% endstylesheet %}
+
+{% javascript %}
+(function () {
+  function initFuul(root) {
+    if (!root || root.__fuulInit) return;
+    root.__fuulInit = true;
+
+    var quantityInput = root.querySelector('[data-fuul-quantity]');
+    var sellingPlanInput = root.querySelector('[data-fuul-selling-plan]');
+
+    // Bundle selection -> quantity
+    var bundles = root.querySelectorAll('[data-fuul-bundle]');
+    bundles.forEach(function (el) {
+      el.addEventListener('click', function () {
+        bundles.forEach(function (b) { b.classList.remove('is-selected'); });
+        el.classList.add('is-selected');
+        var input = el.querySelector('input[type="radio"]');
+        if (input) input.checked = true;
+        if (quantityInput) quantityInput.value = el.getAttribute('data-quantity') || '1';
+      });
+    });
+
+    // Plan selection -> selling_plan
+    var plans = root.querySelectorAll('[data-fuul-plan]');
+    plans.forEach(function (el) {
+      el.addEventListener('click', function () {
+        plans.forEach(function (p) { p.classList.remove('is-selected'); });
+        el.classList.add('is-selected');
+        var input = el.querySelector('input[type="radio"]');
+        if (input) input.checked = true;
+        if (sellingPlanInput) sellingPlanInput.value = el.getAttribute('data-selling-plan') || '';
+      });
+    });
+
+    // Gallery thumbnails
+    var gallery = root.querySelector('[data-fuul-gallery]');
+    if (gallery) {
+      var main = gallery.querySelector('[data-fuul-main]');
+      gallery.querySelectorAll('[data-fuul-thumb]').forEach(function (thumb) {
+        thumb.addEventListener('click', function () {
+          gallery.querySelectorAll('[data-fuul-thumb]').forEach(function (t) { t.classList.remove('is-active'); });
+          thumb.classList.add('is-active');
+          var src = thumb.getAttribute('data-src');
+          if (main && src) main.src = src;
+        });
+      });
+    }
+  }
+
+  function run() {
+    document.querySelectorAll('.fuul-pdp').forEach(initFuul);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', run);
+  } else {
+    run();
+  }
+  // Re-init on theme editor section load
+  document.addEventListener('shopify:section:load', run);
+})();
+{% endjavascript %}
+
+{% schema %}
+{
+  "name": "FUUL Product Page",
+  "tag": "section",
+  "class": "section-fuul-pdp",
+  "settings": [
+    { "type": "product", "id": "product", "label": "Product" },
+    { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "scheme-1" },
+    { "type": "header", "content": "Header" },
+    { "type": "text", "id": "rating_text", "label": "Rating text", "default": "4.9/5 | 20,000+ Customers" },
+    { "type": "textarea", "id": "subtitle", "label": "Subtitle", "default": "Each bag contains half a pound of delicious cookie dough bites packed with protein." },
+    { "type": "textarea", "id": "features", "label": "Feature list (one per line)", "default": "40g Protein Per Bag\nNo Seed Oils\nReal Cookie Dough Taste\nSoft and Chewy" },
+    { "type": "header", "content": "Bundle selector" },
+    { "type": "text", "id": "bundle_heading", "label": "Heading", "default": "How many bags?" },
+    { "type": "text", "id": "b1_label", "label": "Bundle 1 label", "default": "1 Bag" },
+    { "type": "text", "id": "b1_price", "label": "Bundle 1 price", "default": "$19.99" },
+    { "type": "text", "id": "b2_badge", "label": "Bundle 2 badge", "default": "Most Popular" },
+    { "type": "text", "id": "b2_label", "label": "Bundle 2 label", "default": "2 Bags" },
+    { "type": "text", "id": "b2_save", "label": "Bundle 2 save pill", "default": "Save 15%" },
+    { "type": "text", "id": "b2_price", "label": "Bundle 2 price", "default": "$32.99" },
+    { "type": "text", "id": "b2_compare", "label": "Bundle 2 compare price", "default": "$39.98" },
+    { "type": "text", "id": "b3_badge", "label": "Bundle 3 badge", "default": "Best Value" },
+    { "type": "text", "id": "b3_label", "label": "Bundle 3 label", "default": "4 Bags" },
+    { "type": "text", "id": "b3_sublabel", "label": "Bundle 3 sublabel", "default": "Buy 3 Get 1 FREE" },
+    { "type": "text", "id": "b3_save", "label": "Bundle 3 save pill", "default": "Save 20%" },
+    { "type": "text", "id": "b3_price", "label": "Bundle 3 price", "default": "$49.99" },
+    { "type": "text", "id": "b3_serving", "label": "Bundle 3 per-serving", "default": "$3.12 per serving" },
+    { "type": "header", "content": "Autoship & Save" },
+    { "type": "text", "id": "autoship_heading", "label": "Heading", "default": "Autoship & Save" },
+    { "type": "text", "id": "sub_title", "label": "Subscribe title", "default": "Subscribe & Save" },
+    { "type": "text", "id": "sub_billing", "label": "Subscribe billing", "default": "Billed $56.05 every 12 weeks" },
+    { "type": "text", "id": "sub_save", "label": "Subscribe save pill", "default": "Save 15%" },
+    { "type": "text", "id": "sub_price", "label": "Subscribe price", "default": "$28.05 / mo" },
+    { "type": "text", "id": "sub_compare", "label": "Subscribe compare price", "default": "$32.99 / mo" },
+    { "type": "textarea", "id": "sub_perks", "label": "Subscribe perks (one per line)", "default": "Save 15% On Every Order\nAutomatic Delivery\nPause, Skip, or Cancel Any Time" },
+    { "type": "text", "id": "once_title", "label": "One-time title", "default": "One Time Purchase" },
+    { "type": "text", "id": "once_billing", "label": "One-time billing", "default": "Billed once" },
+    { "type": "text", "id": "once_price", "label": "One-time price", "default": "$32.99" },
+    { "type": "textarea", "id": "once_perks", "label": "One-time notes (one per line)", "default": "No subscription discount\nNo automatic delivery" },
+    { "type": "header", "content": "Add to cart" },
+    { "type": "text", "id": "cta_text", "label": "Button text", "default": "Add To Cart" },
+    { "type": "richtext", "id": "promo_bar", "label": "Promo bar", "default": "<p>Limited Time Discount Auto-Applied ✅</p>" },
+    { "type": "header", "content": "Trust badges" },
+    { "type": "text", "id": "trust1", "label": "Badge 1", "default": "Ships Within 1 Business Day" },
+    { "type": "text", "id": "trust2", "label": "Badge 2", "default": "Free Shipping Over $65" },
+    { "type": "text", "id": "trust3", "label": "Badge 3", "default": "Secure Checkout" },
+    { "type": "header", "content": "Accordions" },
+    { "type": "text", "id": "acc1_heading", "label": "Accordion 1 heading", "default": "Ingredients" },
+    { "type": "richtext", "id": "acc1_body", "label": "Accordion 1 body", "default": "<p>Add your ingredients here.</p>" },
+    { "type": "text", "id": "acc2_heading", "label": "Accordion 2 heading", "default": "Nutrition Facts" },
+    { "type": "richtext", "id": "acc2_body", "label": "Accordion 2 body", "default": "<p>Add your nutrition facts here.</p>" },
+    { "type": "text", "id": "acc3_heading", "label": "Accordion 3 heading", "default": "How to Store" },
+    { "type": "richtext", "id": "acc3_body", "label": "Accordion 3 body", "default": "<p>Add storage instructions here.</p>" }
+  ],
+  "presets": [
+    { "name": "FUUL Product Page" }
+  ]
+}
+{% endschema %}

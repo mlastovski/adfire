@@ -1,0 +1,211 @@
+{%- comment -%}
+  FUUL Header — faithful reproduction of the Figma header (node 1:108).
+  Yellow bar, outlined pill nav, centered FUUL logo, Account pill, live cart
+  button wired to the theme's existing cart drawer (#cart-drawer/toggle).
+{%- endcomment -%}
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dongle:wght@300;400;700&display=swap" rel="stylesheet">
+
+<script type="module" src="{{ 'cart-icon.js' | asset_url }}" fetchpriority="low"></script>
+
+{%- liquid
+  assign logo = section.settings.logo
+  assign logo_width = section.settings.logo_width | default: 119
+-%}
+
+<fuul-header
+  class="fuul-header{% if section.settings.enable_sticky %} fuul-header--sticky{% endif %}"
+  data-section-id="{{ section.id }}"
+  style="--fuul-logo-width: {{ logo_width }}px;"
+>
+  <div class="fuul-header__inner">
+
+    {%- comment -%} left: pill nav {%- endcomment -%}
+    <nav class="fuul-header__nav" aria-label="{{ 'accessibility.header_navigation_label' | t }}">
+      {%- if section.settings.link_1_label != blank -%}
+        <a class="fuul-pill-link fuul-header__nav-link" href="{{ section.settings.link_1_url | default: '#' }}">{{ section.settings.link_1_label }}</a>
+      {%- endif -%}
+      {%- if section.settings.link_2_label != blank -%}
+        <a class="fuul-pill-link fuul-header__nav-link" href="{{ section.settings.link_2_url | default: '#' }}">{{ section.settings.link_2_label }}</a>
+      {%- endif -%}
+    </nav>
+
+    {%- comment -%} center: logo {%- endcomment -%}
+    <a class="fuul-header__logo" href="{{ routes.root_url }}" aria-label="{{ shop.name | escape }}">
+      {%- if logo != blank -%}
+        {{ logo | image_url: width: 480 | image_tag: widths: '120,240,360,480', alt: shop.name, height: logo.height, width: logo.width }}
+      {%- else -%}
+        <img src="{{ 'fuul-logo.png' | asset_url }}" alt="{{ shop.name | escape }}" width="{{ logo_width }}" height="64">
+      {%- endif -%}
+    </a>
+
+    {%- comment -%} right: account + cart {%- endcomment -%}
+    <div class="fuul-header__actions">
+      {%- if shop.customer_accounts_enabled -%}
+        <a class="fuul-pill-link fuul-header__account" href="{{ routes.account_url }}">{{ section.settings.account_label }}</a>
+      {%- endif -%}
+
+      {%- if settings.cart_type == 'drawer' and template.name != 'cart' -%}
+        <button
+          class="fuul-cart"
+          type="button"
+          on:click="#cart-drawer/toggle"
+          aria-haspopup="dialog"
+          aria-expanded="false"
+          aria-controls="cart-drawer"
+          aria-label="{{ 'accessibility.cart' | t | default: 'Cart' }}"
+          aria-describedby="cart-bubble-text"
+        >
+          <cart-icon class="fuul-cart__icon">
+            <span class="fuul-cart__glyph" aria-hidden="true">{{ 'fuul-cart.svg' | inline_asset_content }}</span>
+            {% render 'cart-bubble', limit: 100 %}
+          </cart-icon>
+        </button>
+      {%- else -%}
+        <a
+          class="fuul-cart"
+          href="{{ routes.cart_url }}"
+          aria-label="{{ 'accessibility.cart' | t | default: 'Cart' }}"
+          aria-describedby="cart-bubble-text"
+        >
+          <cart-icon class="fuul-cart__icon">
+            <span class="fuul-cart__glyph" aria-hidden="true">{{ 'fuul-cart.svg' | inline_asset_content }}</span>
+            {% render 'cart-bubble', limit: 100 %}
+          </cart-icon>
+        </a>
+      {%- endif -%}
+    </div>
+
+  </div>
+</fuul-header>
+
+{% stylesheet %}
+.fuul-header {
+  --fuul-brown: #60413f;
+  --fuul-header-bg: #f7c638;
+  --fuul-badge: #0067d5;
+  display: block;
+  background: var(--fuul-header-bg);
+  font-family: 'Dongle', ui-rounded, 'Trebuchet MS', sans-serif;
+  color: var(--fuul-brown);
+}
+.fuul-header--sticky { position: sticky; top: 0; z-index: 30; }
+.fuul-header *, .fuul-header *::before, .fuul-header *::after { box-sizing: border-box; }
+
+.fuul-header__inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  min-height: 80px;
+  padding: 8px 40px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 20px;
+}
+
+.fuul-header__nav { display: flex; align-items: center; gap: 22px; justify-self: start; }
+.fuul-header__actions { display: flex; align-items: center; gap: 29px; justify-self: end; }
+
+/* pill nav / account buttons */
+.fuul-pill-link {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--fuul-brown); border-radius: 100px;
+  padding: 12px 18px; color: var(--fuul-brown); text-decoration: none;
+  font-family: inherit; font-weight: 400; font-size: 32px; line-height: 1; white-space: nowrap;
+  transition: background-color .15s ease, color .15s ease;
+}
+.fuul-pill-link:hover { background: var(--fuul-brown); color: #fff; }
+
+/* logo */
+.fuul-header__logo { justify-self: center; display: inline-flex; align-items: center; line-height: 0; }
+.fuul-header__logo img { display: block; width: var(--fuul-logo-width, 119px); height: auto; }
+
+/* cart */
+.fuul-cart {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 0; padding: 0; cursor: pointer; color: var(--fuul-brown); text-decoration: none;
+}
+.fuul-cart__icon { --cart-bubble-background: var(--fuul-badge); --cart-bubble-text: #fff; position: relative; display: inline-flex; }
+.fuul-cart__glyph { display: block; width: 40px; height: 36px; }
+.fuul-cart__glyph svg { display: block; width: 100%; height: 100%; }
+/* place the live cart-bubble as the badge, top-right of the glyph */
+.fuul-cart__icon .cart-bubble {
+  position: absolute; top: -4px; right: -6px; width: 16px; height: 16px; padding: 0;
+}
+.fuul-cart__icon .cart-bubble__text { font-family: 'Fraunces', serif; font-weight: 700; font-size: 9px; }
+
+/* mobile — Figma "sticky-header" mobile layout (node 1:609):
+   51px row with a centered logo and the cart at the right, above a
+   full-width 40px nav row split in two by hairline rules. */
+@media (max-width: 749px) {
+  .fuul-header__inner {
+    max-width: none;
+    min-height: 91px;
+    padding: 0;
+    gap: 0;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: 51px 40px;
+  }
+
+  /* row 1 */
+  .fuul-header__logo { grid-column: 2; grid-row: 1; }
+  .fuul-header__logo img { width: 78px; }
+
+  .fuul-header__actions {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: stretch;
+    justify-content: flex-end;
+    gap: 0;
+    padding-inline-end: 24px;
+  }
+  .fuul-header__account { display: none; }
+
+  .fuul-cart__glyph { width: 26px; height: 24px; }
+  .fuul-cart__icon .cart-bubble { top: -1px; right: -3px; width: 10px; height: 10px; }
+  .fuul-cart__icon .cart-bubble__text { font-size: 7px; }
+
+  /* row 2 */
+  .fuul-header__nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: stretch;
+    align-self: stretch;
+    align-items: stretch;
+    gap: 0;
+    border-block: 1px solid var(--fuul-brown);
+  }
+  .fuul-header__nav-link {
+    flex: 1 0 0;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    font-size: 32px;
+  }
+  .fuul-header__nav-link + .fuul-header__nav-link {
+    border-inline-start: 1px solid var(--fuul-brown);
+  }
+}
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name": "FUUL Header",
+  "settings": [
+    { "type": "checkbox", "id": "enable_sticky", "label": "Sticky header", "default": true },
+    { "type": "header", "content": "Logo" },
+    { "type": "image_picker", "id": "logo", "label": "Logo image (defaults to FUUL logo)" },
+    { "type": "range", "id": "logo_width", "min": 80, "max": 240, "step": 2, "unit": "px", "label": "Logo width", "default": 120 },
+    { "type": "header", "content": "Navigation" },
+    { "type": "text", "id": "link_1_label", "label": "Link 1 label", "default": "Products" },
+    { "type": "url", "id": "link_1_url", "label": "Link 1 URL" },
+    { "type": "text", "id": "link_2_label", "label": "Link 2 label", "default": "Contact Us" },
+    { "type": "url", "id": "link_2_url", "label": "Link 2 URL" },
+    { "type": "header", "content": "Account" },
+    { "type": "text", "id": "account_label", "label": "Account label", "default": "Account" }
+  ]
+}
+{% endschema %}
