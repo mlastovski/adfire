@@ -265,9 +265,22 @@
       <h2 class="fuul-section-title">{{ section.settings.autoship_heading }}</h2>
       <div class="fuul-plans" role="radiogroup" aria-label="{{ section.settings.autoship_heading | escape }}">
 
+        {%- comment -%}
+          Real ARIA radios rather than a <label> wrapping a hidden <input>: a
+          hidden input cannot be focused, so the old markup was unreachable by
+          keyboard and left role="radiogroup" with no radio children. The value
+          actually submitted is the selling_plan hidden field in the form below.
+        {%- endcomment -%}
+
         {%- comment -%} Subscribe & Save (default) {%- endcomment -%}
-        <label class="fuul-plan fuul-plan--sub is-selected" data-fuul-plan data-selling-plan="{{ first_plan.id }}">
-          <input type="radio" name="fuul-plan" value="subscribe" checked hidden>
+        <div
+          class="fuul-plan fuul-plan--sub is-selected"
+          data-fuul-plan
+          data-selling-plan="{{ first_plan.id }}"
+          role="radio"
+          aria-checked="true"
+          tabindex="0"
+        >
           <div class="fuul-plan__top">
             <span class="fuul-radio" aria-hidden="true"></span>
             <div class="fuul-plan__info">
@@ -316,11 +329,17 @@
               {%- endif -%}
             {%- endfor -%}
           </ul>
-        </label>
+        </div>
 
         {%- comment -%} One time {%- endcomment -%}
-        <label class="fuul-plan fuul-plan--once" data-fuul-plan data-selling-plan="">
-          <input type="radio" name="fuul-plan" value="once" hidden>
+        <div
+          class="fuul-plan fuul-plan--once"
+          data-fuul-plan
+          data-selling-plan=""
+          role="radio"
+          aria-checked="false"
+          tabindex="-1"
+        >
           <div class="fuul-plan__top">
             <span class="fuul-radio" aria-hidden="true"></span>
             <div class="fuul-plan__info">
@@ -349,7 +368,7 @@
               {%- endif -%}
             {%- endfor -%}
           </ul>
-        </label>
+        </div>
       </div>
 
       {%- comment -%} ============ ADD TO CART ============ {%- endcomment -%}
@@ -567,13 +586,17 @@
 .fuul-plans { display: flex; flex-direction: column; gap: 24px; width: 100%; margin-bottom: 24px; }
 .fuul-plan {
   display: flex; flex-direction: column; gap: 18px; width: 100%;
-  background: #fff; border: 1.5px solid #b3b3b3; border-radius: 14px; padding: 30px 28px; cursor: pointer;
+  background: #fff; border: 1px solid #b3b3b3; border-radius: 14px; padding: 32px 28px; cursor: pointer;
 }
-.fuul-plan--sub.is-selected { border: 6px solid var(--fuul-gold); padding: 26px 24px; }
+/* Selected state is the 6px gold border, per Figma — it belongs to whichever
+   plan is checked, not to the subscribe card specifically. Padding stays put
+   because box-sizing is border-box, so the card does not resize on select. */
+.fuul-plan.is-selected { border: 6px solid var(--fuul-gold); }
+.fuul-plan:focus-visible { outline: 2px solid var(--fuul-brown); outline-offset: 3px; }
 .fuul-plan__top { display: flex; align-items: center; gap: 18px; width: 100%; }
 .fuul-radio {
   flex: none; width: 28px; height: 28px; border-radius: 50%;
-  border: 1.5px solid #cfc4bd; background: #fff; position: relative;
+  border: 1.5px solid #b3b3b3; background: #fff; position: relative;
 }
 .fuul-plan.is-selected .fuul-radio { border-color: var(--fuul-gold); }
 .fuul-plan.is-selected .fuul-radio::after {
@@ -740,17 +763,50 @@
       syncPlanPrices(initialQuantity);
     }
 
-    // Plan selection -> selling_plan
-    var plans = root.querySelectorAll('[data-fuul-plan]');
-    plans.forEach(function (el) {
+    // Plan selection -> selling_plan.
+    // The plans are ARIA radios, so selection drives aria-checked and a roving
+    // tabindex (only the checked radio is tabbable, arrows move within the group).
+    var plans = Array.prototype.slice.call(root.querySelectorAll('[data-fuul-plan]'));
+
+    function selectPlan(el, focus) {
+      plans.forEach(function (p) {
+        var isSelected = p === el;
+        p.classList.toggle('is-selected', isSelected);
+        p.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+        p.setAttribute('tabindex', isSelected ? '0' : '-1');
+      });
+      if (sellingPlanInput) sellingPlanInput.value = el.getAttribute('data-selling-plan') || '';
+      if (focus) el.focus();
+    }
+
+    plans.forEach(function (el, index) {
       el.addEventListener('click', function () {
-        plans.forEach(function (p) { p.classList.remove('is-selected'); });
-        el.classList.add('is-selected');
-        var input = el.querySelector('input[type="radio"]');
-        if (input) input.checked = true;
-        if (sellingPlanInput) sellingPlanInput.value = el.getAttribute('data-selling-plan') || '';
+        selectPlan(el, false);
+      });
+
+      el.addEventListener('keydown', function (event) {
+        var key = event.key;
+
+        if (key === ' ' || key === 'Enter') {
+          event.preventDefault();
+          selectPlan(el, true);
+          return;
+        }
+
+        var step = 0;
+        if (key === 'ArrowDown' || key === 'ArrowRight') step = 1;
+        if (key === 'ArrowUp' || key === 'ArrowLeft') step = -1;
+        if (!step) return;
+
+        event.preventDefault();
+        var next = (index + step + plans.length) % plans.length;
+        selectPlan(plans[next], true);
       });
     });
+
+    // Keep the form in step with whichever plan is pre-selected.
+    var initialPlan = root.querySelector('[data-fuul-plan].is-selected') || plans[0];
+    if (initialPlan) selectPlan(initialPlan, false);
 
     // Gallery thumbnails
     var gallery = root.querySelector('[data-fuul-gallery]');
