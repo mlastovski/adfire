@@ -1,17 +1,17 @@
 {%- comment -%}
   FUUL Product Detail Page — faithful reproduction of the Figma design.
   Chrome (announcement/header/cart-drawer) is intentionally left to the theme.
-  Marketing copy for bundles / subscription / accordions is exposed via schema
-  settings (defaults match the design). Add-to-cart is wired to the real product
-  form so the theme cart drawer opens on submit.
+
+  Copy (labels, badges, perks, accordions) is exposed via schema settings.
+  Prices are NOT — every figure shown is read from the product in Shopify:
+  variant price, compare-at price, volume pricing (quantity price breaks) and
+  selling plan allocations. See the pricing block below.
+
+  Add-to-cart is wired to the real product form so the theme cart drawer opens
+  on submit.
 {%- endcomment -%}
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link
-  href="https://fonts.googleapis.com/css2?family=Dongle:wght@300;400;700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap"
-  rel="stylesheet"
->
+{%- comment -%} Dongle + Fraunces are loaded once in <head> via snippets/fuul-fonts.liquid {%- endcomment -%}
 
 {%- liquid
   assign product = section.settings.product | default: product
@@ -28,6 +28,91 @@
   endif
 
   assign form_id = 'fuul-product-form-' | append: section.id
+
+  # ---------------------------------------------------------------------------
+  # Pricing — all values below come from Shopify, never from theme settings.
+  #
+  # Every bundle adds the SAME variant at a different quantity, so the honest
+  # per-tier price is Shopify's own volume pricing (quantity_price_breaks).
+  # Those are real prices that checkout honours. When a merchant has not
+  # configured volume pricing the tiers simply fall back to unit price x qty,
+  # which is exactly what the customer will be charged.
+  # ---------------------------------------------------------------------------
+  assign b1_qty = section.settings.b1_quantity | default: 1
+  assign b2_qty = section.settings.b2_quantity | default: 2
+  assign b3_qty = section.settings.b3_quantity | default: 4
+
+  assign unit_price = variant.price
+
+  # "List" unit price for strike-throughs: the variant's compare-at when it is
+  # genuinely higher, otherwise its own price (which yields no strike-through).
+  # Guarded the way snippets/price.liquid does it, so a nil compare-at is safe.
+  assign unit_list = unit_price
+  if variant.compare_at_price > unit_price
+    assign unit_list = variant.compare_at_price
+  endif
+
+  # Best volume-price break each tier qualifies for.
+  assign b1_unit = unit_price
+  assign b2_unit = unit_price
+  assign b3_unit = unit_price
+  for price_break in variant.quantity_price_breaks
+    if b1_qty >= price_break.minimum_quantity and price_break.price < b1_unit
+      assign b1_unit = price_break.price
+    endif
+    if b2_qty >= price_break.minimum_quantity and price_break.price < b2_unit
+      assign b2_unit = price_break.price
+    endif
+    if b3_qty >= price_break.minimum_quantity and price_break.price < b3_unit
+      assign b3_unit = price_break.price
+    endif
+  endfor
+
+  assign b1_total = b1_unit | times: b1_qty
+  assign b2_total = b2_unit | times: b2_qty
+  assign b3_total = b3_unit | times: b3_qty
+
+  assign b1_list = unit_list | times: b1_qty
+  assign b2_list = unit_list | times: b2_qty
+  assign b3_list = unit_list | times: b3_qty
+
+  assign b1_save_pct = 0
+  if b1_list > b1_total
+    assign b1_save_pct = b1_list | minus: b1_total | times: 100 | divided_by: b1_list
+  endif
+  assign b2_save_pct = 0
+  if b2_list > b2_total
+    assign b2_save_pct = b2_list | minus: b2_total | times: 100 | divided_by: b2_list
+  endif
+  assign b3_save_pct = 0
+  if b3_list > b3_total
+    assign b3_save_pct = b3_list | minus: b3_total | times: 100 | divided_by: b3_list
+  endif
+
+  # Per-serving price for the best-value tier.
+  assign servings_per_unit = section.settings.servings_per_unit | default: 0
+  assign b3_servings = servings_per_unit | times: b3_qty
+  assign b3_has_serving = false
+  if b3_servings > 0
+    assign b3_serving_price = b3_total | divided_by: b3_servings
+    assign b3_has_serving = true
+  endif
+
+  # Subscription pricing from the real selling plan allocation.
+  assign plan_unit = unit_price
+  assign plan_unit_compare = unit_price
+  if uses_selling_plans
+    for allocation in variant.selling_plan_allocations
+      if allocation.selling_plan_id == first_plan.id
+        assign plan_unit = allocation.price
+        assign plan_unit_compare = allocation.compare_at_price | default: unit_price
+      endif
+    endfor
+  endif
+  assign plan_save_pct = 0
+  if plan_unit_compare > plan_unit
+    assign plan_save_pct = plan_unit_compare | minus: plan_unit | times: 100 | divided_by: plan_unit_compare
+  endif
 -%}
 
 <section class="fuul-pdp color-{{ section.settings.color_scheme }}" data-section-id="{{ section.id }}">
@@ -123,41 +208,55 @@
       <div class="fuul-bundles" role="radiogroup" aria-label="{{ section.settings.bundle_heading | escape }}">
 
         {%- comment -%} bundle 1 {%- endcomment -%}
-        <label class="fuul-bundle" data-fuul-bundle data-quantity="1">
-          <input type="radio" name="fuul-bundle" value="1" hidden>
+        <label class="fuul-bundle" data-fuul-bundle data-quantity="{{ b1_qty }}">
+          <input type="radio" name="fuul-bundle" value="{{ b1_qty }}" hidden>
           <span class="fuul-bundle__label">{{ section.settings.b1_label }}</span>
           <span class="fuul-bundle__line"></span>
+          {%- if b1_save_pct > 0 -%}
+            <span class="fuul-pill fuul-pill--cream">Save {{ b1_save_pct }}%</span>
+          {%- endif -%}
           <img class="fuul-bundle__img" src="{{ 'fuul-bundle-1.png' | asset_url }}" alt="" width="120" height="120" loading="lazy">
-          <span class="fuul-bundle__price">{{ section.settings.b1_price }}</span>
+          <span class="fuul-bundle__price">{{ b1_total | money }}</span>
+          {%- if b1_list > b1_total -%}
+            <span class="fuul-bundle__compare">{{ b1_list | money }}</span>
+          {%- endif -%}
         </label>
 
         {%- comment -%} bundle 2 (Most Popular, default) {%- endcomment -%}
-        <label class="fuul-bundle fuul-bundle--popular is-selected" data-fuul-bundle data-quantity="2">
+        <label class="fuul-bundle fuul-bundle--popular is-selected" data-fuul-bundle data-quantity="{{ b2_qty }}">
           <span class="fuul-bundle__badge fuul-bundle__badge--popular">{{ section.settings.b2_badge }}</span>
-          <input type="radio" name="fuul-bundle" value="2" checked hidden>
+          <input type="radio" name="fuul-bundle" value="{{ b2_qty }}" checked hidden>
           <span class="fuul-bundle__label">{{ section.settings.b2_label }}</span>
           <span class="fuul-bundle__line"></span>
-          <span class="fuul-pill fuul-pill--cream">{{ section.settings.b2_save }}</span>
+          {%- if b2_save_pct > 0 -%}
+            <span class="fuul-pill fuul-pill--cream">Save {{ b2_save_pct }}%</span>
+          {%- endif -%}
           <img class="fuul-bundle__img" src="{{ 'fuul-bundle-2.png' | asset_url }}" alt="" width="120" height="120" loading="lazy">
-          <span class="fuul-bundle__price">{{ section.settings.b2_price }}</span>
-          <span class="fuul-bundle__compare">{{ section.settings.b2_compare }}</span>
+          <span class="fuul-bundle__price">{{ b2_total | money }}</span>
+          {%- if b2_list > b2_total -%}
+            <span class="fuul-bundle__compare">{{ b2_list | money }}</span>
+          {%- endif -%}
         </label>
 
         {%- comment -%} bundle 4 (Best Value) {%- endcomment -%}
-        <label class="fuul-bundle fuul-bundle--value" data-fuul-bundle data-quantity="4">
+        <label class="fuul-bundle fuul-bundle--value" data-fuul-bundle data-quantity="{{ b3_qty }}">
           <span class="fuul-bundle__badge fuul-bundle__badge--value">{{ section.settings.b3_badge }}</span>
-          <input type="radio" name="fuul-bundle" value="4" hidden>
+          <input type="radio" name="fuul-bundle" value="{{ b3_qty }}" hidden>
           <span class="fuul-bundle__label">{{ section.settings.b3_label }}</span>
           <span class="fuul-bundle__line"></span>
           <span class="fuul-bundle__sub">{{ section.settings.b3_sublabel }}</span>
-          <span class="fuul-pill fuul-pill--cream">{{ section.settings.b3_save }}</span>
+          {%- if b3_save_pct > 0 -%}
+            <span class="fuul-pill fuul-pill--cream">Save {{ b3_save_pct }}%</span>
+          {%- endif -%}
           <img class="fuul-bundle__img" src="{{ 'fuul-bundle-4.png' | asset_url }}" alt="" width="120" height="120" loading="lazy">
           <div class="fuul-bundle__price-group">
-            <span class="fuul-bundle__price">{{ section.settings.b3_price }}</span>
-            <span class="fuul-bundle__serving">
-              <img src="{{ 'fuul-leaf.svg' | asset_url }}" alt="" width="13" height="13">
-              {{ section.settings.b3_serving }}
-            </span>
+            <span class="fuul-bundle__price">{{ b3_total | money }}</span>
+            {%- if b3_has_serving -%}
+              <span class="fuul-bundle__serving">
+                <img src="{{ 'fuul-leaf.svg' | asset_url }}" alt="" width="13" height="13">
+                {{ b3_serving_price | money }} {{ section.settings.serving_suffix }}
+              </span>
+            {%- endif -%}
           </div>
         </label>
       </div>
@@ -173,12 +272,38 @@
             <span class="fuul-radio" aria-hidden="true"></span>
             <div class="fuul-plan__info">
               <span class="fuul-plan__name">{{ section.settings.sub_title }}</span>
-              <span class="fuul-plan__meta">{{ section.settings.sub_billing }}</span>
+              {%- comment -%}
+                Cadence comes from the selling plan itself (e.g. "Delivery every
+                12 weeks"), so it always matches what Shopify will bill.
+              {%- endcomment -%}
+              <span class="fuul-plan__meta">
+                {{- first_plan.name | default: section.settings.sub_billing -}}
+              </span>
             </div>
-            <span class="fuul-pill fuul-pill--gold">{{ section.settings.sub_save }}</span>
+            {%- if plan_save_pct > 0 -%}
+              <span class="fuul-pill fuul-pill--gold">Save {{ plan_save_pct }}%</span>
+            {%- endif -%}
             <div class="fuul-plan__price">
-              <span class="fuul-plan__now">{{ section.settings.sub_price }}</span>
-              <span class="fuul-plan__was">{{ section.settings.sub_compare }}</span>
+              <span
+                class="fuul-plan__now"
+                data-fuul-plan-price
+                data-price-{{ b1_qty }}="{{ plan_unit | times: b1_qty | money }}"
+                data-price-{{ b2_qty }}="{{ plan_unit | times: b2_qty | money }}"
+                data-price-{{ b3_qty }}="{{ plan_unit | times: b3_qty | money }}"
+              >
+                {{- plan_unit | times: b2_qty | money -}}
+              </span>
+              {%- if plan_unit_compare > plan_unit -%}
+                <span
+                  class="fuul-plan__was"
+                  data-fuul-plan-compare
+                  data-price-{{ b1_qty }}="{{ plan_unit_compare | times: b1_qty | money }}"
+                  data-price-{{ b2_qty }}="{{ plan_unit_compare | times: b2_qty | money }}"
+                  data-price-{{ b3_qty }}="{{ plan_unit_compare | times: b3_qty | money }}"
+                >
+                  {{- plan_unit_compare | times: b2_qty | money -}}
+                </span>
+              {%- endif -%}
             </div>
           </div>
           <hr class="fuul-plan__rule">
@@ -203,7 +328,15 @@
               <span class="fuul-plan__meta">{{ section.settings.once_billing }}</span>
             </div>
             <div class="fuul-plan__price">
-              <span class="fuul-plan__now">{{ section.settings.once_price }}</span>
+              <span
+                class="fuul-plan__now"
+                data-fuul-once-price
+                data-price-{{ b1_qty }}="{{ b1_total | money }}"
+                data-price-{{ b2_qty }}="{{ b2_total | money }}"
+                data-price-{{ b3_qty }}="{{ b3_total | money }}"
+              >
+                {{- b2_total | money -}}
+              </span>
             </div>
           </div>
           <hr class="fuul-plan__rule">
@@ -229,7 +362,7 @@
         <div class="visually-hidden" aria-live="assertive" role="status" aria-atomic="true" ref="liveRegion"></div>
         {%- form 'product', product, id: form_id, novalidate: 'novalidate', data-type: 'add-to-cart-form' -%}
           <input type="hidden" name="id" ref="variantId" value="{{ variant.id }}" data-fuul-variant {% unless variant.available %}disabled{% endunless %}>
-          <input type="hidden" name="quantity" value="2" data-fuul-quantity>
+          <input type="hidden" name="quantity" value="{{ b2_qty }}" data-fuul-quantity>
           <input type="hidden" name="selling_plan" value="{{ first_plan.id }}" data-fuul-selling-plan>
 
           <add-to-cart-component
@@ -573,6 +706,18 @@
     var quantityInput = root.querySelector('[data-fuul-quantity]');
     var sellingPlanInput = root.querySelector('[data-fuul-selling-plan]');
 
+    // Plan prices are pre-rendered by Liquid for every bundle quantity, so the
+    // displayed figures stay Shopify-formatted (currency, delimiters) without
+    // doing any money math in JS.
+    function syncPlanPrices(quantity) {
+      root.querySelectorAll('[data-fuul-plan-price], [data-fuul-plan-compare], [data-fuul-once-price]').forEach(
+        function (el) {
+          var next = el.getAttribute('data-price-' + quantity);
+          if (next) el.textContent = next;
+        }
+      );
+    }
+
     // Bundle selection -> quantity
     var bundles = root.querySelectorAll('[data-fuul-bundle]');
     bundles.forEach(function (el) {
@@ -581,9 +726,19 @@
         el.classList.add('is-selected');
         var input = el.querySelector('input[type="radio"]');
         if (input) input.checked = true;
-        if (quantityInput) quantityInput.value = el.getAttribute('data-quantity') || '1';
+        var quantity = el.getAttribute('data-quantity') || '1';
+        if (quantityInput) quantityInput.value = quantity;
+        syncPlanPrices(quantity);
       });
     });
+
+    // Keep the form and the plan prices in step with the pre-selected bundle.
+    var initialBundle = root.querySelector('[data-fuul-bundle].is-selected') || bundles[0];
+    if (initialBundle) {
+      var initialQuantity = initialBundle.getAttribute('data-quantity') || '1';
+      if (quantityInput) quantityInput.value = initialQuantity;
+      syncPlanPrices(initialQuantity);
+    }
 
     // Plan selection -> selling_plan
     var plans = root.querySelectorAll('[data-fuul-plan]');
@@ -652,31 +807,26 @@
     { "type": "textarea", "id": "subtitle", "label": "Subtitle", "default": "Each bag contains half a pound of delicious cookie dough bites packed with protein." },
     { "type": "textarea", "id": "features", "label": "Feature list (one per line)", "default": "40g Protein Per Bag\nNo Seed Oils\nReal Cookie Dough Taste\nSoft and Chewy" },
     { "type": "header", "content": "Bundle selector" },
+    { "type": "paragraph", "content": "Prices, compare-at prices and savings are read from the product in Shopify. To discount the multi-unit tiers, set up volume pricing (quantity price breaks) on the variant — those prices are honoured at checkout." },
     { "type": "text", "id": "bundle_heading", "label": "Heading", "default": "How many bags?" },
     { "type": "text", "id": "b1_label", "label": "Bundle 1 label", "default": "1 Bag" },
-    { "type": "text", "id": "b1_price", "label": "Bundle 1 price", "default": "$19.99" },
+    { "type": "number", "id": "b1_quantity", "label": "Bundle 1 quantity", "default": 1 },
     { "type": "text", "id": "b2_badge", "label": "Bundle 2 badge", "default": "Most Popular" },
     { "type": "text", "id": "b2_label", "label": "Bundle 2 label", "default": "2 Bags" },
-    { "type": "text", "id": "b2_save", "label": "Bundle 2 save pill", "default": "Save 15%" },
-    { "type": "text", "id": "b2_price", "label": "Bundle 2 price", "default": "$32.99" },
-    { "type": "text", "id": "b2_compare", "label": "Bundle 2 compare price", "default": "$39.98" },
+    { "type": "number", "id": "b2_quantity", "label": "Bundle 2 quantity", "default": 2 },
     { "type": "text", "id": "b3_badge", "label": "Bundle 3 badge", "default": "Best Value" },
     { "type": "text", "id": "b3_label", "label": "Bundle 3 label", "default": "4 Bags" },
     { "type": "text", "id": "b3_sublabel", "label": "Bundle 3 sublabel", "default": "Buy 3 Get 1 FREE" },
-    { "type": "text", "id": "b3_save", "label": "Bundle 3 save pill", "default": "Save 20%" },
-    { "type": "text", "id": "b3_price", "label": "Bundle 3 price", "default": "$49.99" },
-    { "type": "text", "id": "b3_serving", "label": "Bundle 3 per-serving", "default": "$3.12 per serving" },
+    { "type": "number", "id": "b3_quantity", "label": "Bundle 3 quantity", "default": 4 },
+    { "type": "number", "id": "servings_per_unit", "label": "Servings per unit", "info": "Used to work out the per-serving price. Leave at 0 to hide it.", "default": 0 },
+    { "type": "text", "id": "serving_suffix", "label": "Per-serving suffix", "default": "per serving" },
     { "type": "header", "content": "Autoship & Save" },
     { "type": "text", "id": "autoship_heading", "label": "Heading", "default": "Autoship & Save" },
     { "type": "text", "id": "sub_title", "label": "Subscribe title", "default": "Subscribe & Save" },
-    { "type": "text", "id": "sub_billing", "label": "Subscribe billing", "default": "Billed $56.05 every 12 weeks" },
-    { "type": "text", "id": "sub_save", "label": "Subscribe save pill", "default": "Save 15%" },
-    { "type": "text", "id": "sub_price", "label": "Subscribe price", "default": "$28.05 / mo" },
-    { "type": "text", "id": "sub_compare", "label": "Subscribe compare price", "default": "$32.99 / mo" },
-    { "type": "textarea", "id": "sub_perks", "label": "Subscribe perks (one per line)", "default": "Save 15% On Every Order\nAutomatic Delivery\nPause, Skip, or Cancel Any Time" },
+    { "type": "text", "id": "sub_billing", "label": "Subscribe billing fallback", "info": "Only used when the product has no selling plan — otherwise the plan's own name is shown.", "default": "Billed every 12 weeks" },
+    { "type": "textarea", "id": "sub_perks", "label": "Subscribe perks (one per line)", "default": "Save On Every Order\nAutomatic Delivery\nPause, Skip, or Cancel Any Time" },
     { "type": "text", "id": "once_title", "label": "One-time title", "default": "One Time Purchase" },
     { "type": "text", "id": "once_billing", "label": "One-time billing", "default": "Billed once" },
-    { "type": "text", "id": "once_price", "label": "One-time price", "default": "$32.99" },
     { "type": "textarea", "id": "once_perks", "label": "One-time notes (one per line)", "default": "No subscription discount\nNo automatic delivery" },
     { "type": "header", "content": "Add to cart" },
     { "type": "text", "id": "cta_text", "label": "Button text", "default": "Add To Cart" },

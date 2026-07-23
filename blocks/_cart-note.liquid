@@ -1,0 +1,69 @@
+{% assign block_settings = block.settings %}
+
+<script
+  src="{{ 'cart-note.js' | asset_url }}"
+  type="module"
+  fetchpriority="low"
+></script>
+
+<cart-note
+  style="display: flex;"
+  {{ block.shopify_attributes }}
+>
+  {% capture cart_note_accordion_children %}
+    <details
+      {% if block_settings.open_by_default %}
+        open
+      {% endif %}
+    >
+      <summary class="cart-note__summary">
+        <span class="cart-note__label cart-primary-typography">
+          {{ 'content.seller_note' | t }}
+        </span>
+
+        <span class="cart-totals__icon">
+          {{- 'icon-plus.svg' | inline_asset_content -}}
+        </span>
+      </summary>
+
+      <div class="details-content cart-note__inner">
+        <label
+          for="cart-note-{{ block.id }}"
+          class="visually-hidden"
+        >
+          {{- 'content.seller_note' | t -}}
+        </label>
+        <textarea
+          form="cart-form"
+          on:input="/updateCartNote"
+          id="cart-note-{{ block.id }}"
+          class="cart-note__instructions"
+          name="note"
+          data-skip-node-update
+        >{{ cart.note }}</textarea>
+      </div>
+    </details>
+  {% endcapture %}
+
+  {% render 'accordion-custom-component',
+    children: cart_note_accordion_children,
+    class: 'cart-note',
+    open_by_default_on_desktop: block_settings.open_by_default,
+    open_by_default_on_mobile: block_settings.open_by_default
+  %}
+</cart-note>
+
+{% schema %}
+{
+  "name": "Cart note",
+  "tag": null,
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "open_by_default",
+      "label": "Open by default",
+      "default": false
+    }
+  ]
+}
+{% endschema %}

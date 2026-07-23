@@ -56,7 +56,7 @@
         }
       },
       "settings": {
-        "section_width": "page-width",
+        "section_width": "full-width",
         "background_color": "{{ settings.color_palette.background }}",
         "padding-block-start": 24,
         "padding-block-end": 0

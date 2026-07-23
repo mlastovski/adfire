@@ -15,6 +15,10 @@
   {% if block_settings.extend_summary == false and block_settings.border_radius > 0 %} has-border-radius{% endif %}
 {%- endcapture -%}
 
+{% capture cart_summary_children %}
+  {% content_for 'blocks' %}
+{% endcapture %}
+
 {% if block_settings.extend_summary %}
   <div
     class="section-background{% if custom_color %} color-custom-{{ block.id }} inherit-parent-scheme--mobile{% endif %}"
@@ -33,7 +37,7 @@
   {{ block.shopify_attributes }}
 >
   <div class="{{ cart_summary_inner_class }}">
-    {% render 'cart-summary', accelerated_checkout_buttons_layout: 'vertical', section_id: section.id %}
+      {% render 'cart-summary', accelerated_checkout_buttons_layout: 'vertical', section_id: section.id, children: cart_summary_children %}
   </div>
 </div>
 
@@ -142,6 +146,23 @@
 {
   "name": "t:names.summary",
   "tag": null,
+  "blocks": [
+    {
+      "type": "@theme"
+    },
+    {
+      "type": "@app"
+    },
+    {
+      "type": "_cart-note"
+    },
+    {
+      "type": "_cart-discount"
+    },
+    {
+      "type": "_divider"
+    }
+  ],
   "settings": [
     {
       "type": "checkbox",
