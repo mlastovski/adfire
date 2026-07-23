@@ -4,9 +4,7 @@
   button wired to the theme's existing cart drawer (#cart-drawer/toggle).
 {%- endcomment -%}
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Dongle:wght@300;400;700&display=swap" rel="stylesheet">
+{%- comment -%} Dongle is loaded once in <head> via snippets/fuul-fonts.liquid {%- endcomment -%}
 
 <script type="module" src="{{ 'cart-icon.js' | asset_url }}" fetchpriority="low"></script>
 

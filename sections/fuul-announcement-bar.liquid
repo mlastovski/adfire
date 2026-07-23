@@ -1,0 +1,63 @@
+{%- comment -%}
+  FUUL Announcement Bar — faithful reproduction of the Figma bar
+  (desktop node 1:106, mobile node 1:607). Cream band, centered Dongle
+  copy, 60px tall on desktop and 40px on mobile.
+{%- endcomment -%}
+
+{%- liquid
+  assign text = section.settings.text
+  assign url = section.settings.link_url
+-%}
+
+{%- if text != blank -%}
+  <aside class="fuul-announcement">
+    {%- if url != blank -%}
+      <a class="fuul-announcement__text fuul-announcement__text--link" href="{{ url }}">{{ text }}</a>
+    {%- else -%}
+      <p class="fuul-announcement__text">{{ text }}</p>
+    {%- endif -%}
+  </aside>
+{%- endif -%}
+
+{% stylesheet %}
+.fuul-announcement {
+  --fuul-announcement-bg: #fef0c7;
+  --fuul-announcement-text: #60413f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60px;
+  padding: 8px 24px;
+  background: var(--fuul-announcement-bg);
+  box-sizing: border-box;
+}
+
+.fuul-announcement__text {
+  margin: 0;
+  color: var(--fuul-announcement-text);
+  font-family: 'Dongle', ui-rounded, 'Trebuchet MS', sans-serif;
+  font-weight: 400;
+  font-size: 38px;
+  line-height: 1;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.fuul-announcement__text--link { text-decoration: none; }
+.fuul-announcement__text--link:hover { text-decoration: underline; }
+
+@media (max-width: 749px) {
+  .fuul-announcement { min-height: 40px; padding: 6px 16px; }
+  .fuul-announcement__text { font-size: 24px; }
+}
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name": "FUUL Announcement Bar",
+  "settings": [
+    { "type": "text", "id": "text", "label": "Text", "default": "FREE Shipping All Orders $65+" },
+    { "type": "url", "id": "link_url", "label": "Link (optional)" }
+  ]
+}
+{% endschema %}
