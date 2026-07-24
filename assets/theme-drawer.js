@@ -46,6 +46,20 @@ export class ThemeDrawer extends Component {
   #modalQuery = window.matchMedia(`(max-width: ${MODAL_BREAKPOINT - 1}px)`);
 
   /**
+   * Whether the panel should open as a modal dialog (top layer + native
+   * ::backdrop) rather than a non-modal, page-squeezing sidebar.
+   *
+   * Narrow viewports are always modal. The `always-modal` attribute opts an
+   * individual drawer into modal behaviour at every width — used by the cart
+   * drawer, which overlays the page and dims it instead of squeezing.
+   *
+   * @returns {boolean}
+   */
+  get #isModal() {
+    return this.hasAttribute('always-modal') || this.#modalQuery.matches;
+  }
+
+  /**
    * @returns {boolean} Whether the drawer is currently open.
    */
   get isOpen() {
@@ -78,7 +92,7 @@ export class ThemeDrawer extends Component {
    */
   #onRestore() {
     const { panel } = this.refs;
-    if (this.#modalQuery.matches) {
+    if (this.#isModal) {
       lockScroll(panel);
     }
 
@@ -145,7 +159,7 @@ export class ThemeDrawer extends Component {
     panel.close();
     removeTrapFocus();
 
-    if (this.#modalQuery.matches) {
+    if (this.#isModal) {
       lockScroll(panel);
       panel.showModal();
     } else {
@@ -215,7 +229,7 @@ export class ThemeDrawer extends Component {
 
     this.#previouslyFocused = /** @type {HTMLElement | null} */ (document.activeElement);
 
-    if (this.#modalQuery.matches) {
+    if (this.#isModal) {
       lockScroll(panel);
       panel.showModal();
     } else {
@@ -251,7 +265,7 @@ export class ThemeDrawer extends Component {
     // In modal mode, dialogs live in the browser's top layer where z-index
     // is ignored — stacking follows showModal() call order. Re-calling
     // showModal() moves this dialog to the top of the stack.
-    if (this.#modalQuery.matches && panel.open) {
+    if (this.#isModal && panel.open) {
       lockScroll(panel);
       panel.close();
       panel.showModal();

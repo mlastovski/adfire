@@ -103,7 +103,11 @@
   assign plan_unit_compare = unit_price
   if uses_selling_plans
     for allocation in variant.selling_plan_allocations
-      if allocation.selling_plan_id == first_plan.id
+      # selling_plan_allocation exposes the plan as a nested object — there is
+      # no flat `selling_plan_id`. Matching on that always failed silently, so
+      # plan_unit kept the one-time price while the form still posted a
+      # selling_plan, and the cart charged the subscription price.
+      if allocation.selling_plan.id == first_plan.id
         assign plan_unit = allocation.price
         assign plan_unit_compare = allocation.compare_at_price | default: unit_price
       endif
@@ -112,6 +116,50 @@
   assign plan_save_pct = 0
   if plan_unit_compare > plan_unit
     assign plan_save_pct = plan_unit_compare | minus: plan_unit | times: 100 | divided_by: plan_unit_compare
+  endif
+
+  # Per-tier subscription totals. The bundle cards must show the price for the
+  # plan that is actually selected, otherwise the card advertises the one-time
+  # price while the form submits a selling_plan and the cart charges the
+  # subscription price. Both sets are rendered and swapped by JS on selection.
+  assign b1_plan_total = plan_unit | times: b1_qty
+  assign b2_plan_total = plan_unit | times: b2_qty
+  assign b3_plan_total = plan_unit | times: b3_qty
+
+  assign b1_plan_save_pct = 0
+  if b1_list > b1_plan_total
+    assign b1_plan_save_pct = b1_list | minus: b1_plan_total | times: 100 | divided_by: b1_list
+  endif
+  assign b2_plan_save_pct = 0
+  if b2_list > b2_plan_total
+    assign b2_plan_save_pct = b2_list | minus: b2_plan_total | times: 100 | divided_by: b2_list
+  endif
+  assign b3_plan_save_pct = 0
+  if b3_list > b3_plan_total
+    assign b3_plan_save_pct = b3_list | minus: b3_plan_total | times: 100 | divided_by: b3_list
+  endif
+
+  # Subscribe is pre-selected whenever the product actually has a selling plan,
+  # so that is the mode the initial render must reflect.
+  if uses_selling_plans
+    assign initial_b1_total = b1_plan_total
+    assign initial_b2_total = b2_plan_total
+    assign initial_b3_total = b3_plan_total
+    assign initial_b1_save = b1_plan_save_pct
+    assign initial_b2_save = b2_plan_save_pct
+    assign initial_b3_save = b3_plan_save_pct
+  else
+    assign initial_b1_total = b1_total
+    assign initial_b2_total = b2_total
+    assign initial_b3_total = b3_total
+    assign initial_b1_save = b1_save_pct
+    assign initial_b2_save = b2_save_pct
+    assign initial_b3_save = b3_save_pct
+  endif
+
+  # Per-serving follows the same selected-plan logic.
+  if b3_has_serving
+    assign b3_serving_price = initial_b3_total | divided_by: b3_servings
   endif
 -%}
 
@@ -212,11 +260,22 @@
           <input type="radio" name="fuul-bundle" value="{{ b1_qty }}" hidden>
           <span class="fuul-bundle__label">{{ section.settings.b1_label }}</span>
           <span class="fuul-bundle__line"></span>
-          {%- if b1_save_pct > 0 -%}
-            <span class="fuul-pill fuul-pill--cream">Save {{ b1_save_pct }}%</span>
+          {%- if b1_save_pct > 0 or b1_plan_save_pct > 0 -%}
+            <span
+              class="fuul-pill fuul-pill--cream"
+              data-fuul-bundle-save
+              data-save-once="{{ b1_save_pct }}"
+              data-save-plan="{{ b1_plan_save_pct }}"
+              {% if initial_b1_save == 0 %}hidden{% endif %}
+            >Save {{ initial_b1_save }}%</span>
           {%- endif -%}
           <img class="fuul-bundle__img" src="{{ 'fuul-bundle-1.png' | asset_url }}" alt="" width="120" height="120" loading="lazy">
-          <span class="fuul-bundle__price">{{ b1_total | money }}</span>
+          <span
+            class="fuul-bundle__price"
+            data-fuul-bundle-price
+            data-price-once="{{ b1_total | money }}"
+            data-price-plan="{{ b1_plan_total | money }}"
+          >{{ initial_b1_total | money }}</span>
           {%- if b1_list > b1_total -%}
             <span class="fuul-bundle__compare">{{ b1_list | money }}</span>
           {%- endif -%}
@@ -228,11 +287,22 @@
           <input type="radio" name="fuul-bundle" value="{{ b2_qty }}" checked hidden>
           <span class="fuul-bundle__label">{{ section.settings.b2_label }}</span>
           <span class="fuul-bundle__line"></span>
-          {%- if b2_save_pct > 0 -%}
-            <span class="fuul-pill fuul-pill--cream">Save {{ b2_save_pct }}%</span>
+          {%- if b2_save_pct > 0 or b2_plan_save_pct > 0 -%}
+            <span
+              class="fuul-pill fuul-pill--cream"
+              data-fuul-bundle-save
+              data-save-once="{{ b2_save_pct }}"
+              data-save-plan="{{ b2_plan_save_pct }}"
+              {% if initial_b2_save == 0 %}hidden{% endif %}
+            >Save {{ initial_b2_save }}%</span>
           {%- endif -%}
           <img class="fuul-bundle__img" src="{{ 'fuul-bundle-2.png' | asset_url }}" alt="" width="120" height="120" loading="lazy">
-          <span class="fuul-bundle__price">{{ b2_total | money }}</span>
+          <span
+            class="fuul-bundle__price"
+            data-fuul-bundle-price
+            data-price-once="{{ b2_total | money }}"
+            data-price-plan="{{ b2_plan_total | money }}"
+          >{{ initial_b2_total | money }}</span>
           {%- if b2_list > b2_total -%}
             <span class="fuul-bundle__compare">{{ b2_list | money }}</span>
           {%- endif -%}
@@ -245,23 +315,45 @@
           <span class="fuul-bundle__label">{{ section.settings.b3_label }}</span>
           <span class="fuul-bundle__line"></span>
           <span class="fuul-bundle__sub">{{ section.settings.b3_sublabel }}</span>
-          {%- if b3_save_pct > 0 -%}
-            <span class="fuul-pill fuul-pill--cream">Save {{ b3_save_pct }}%</span>
+          {%- if b3_save_pct > 0 or b3_plan_save_pct > 0 -%}
+            <span
+              class="fuul-pill fuul-pill--cream"
+              data-fuul-bundle-save
+              data-save-once="{{ b3_save_pct }}"
+              data-save-plan="{{ b3_plan_save_pct }}"
+              {% if initial_b3_save == 0 %}hidden{% endif %}
+            >Save {{ initial_b3_save }}%</span>
           {%- endif -%}
           <img class="fuul-bundle__img" src="{{ 'fuul-bundle-4.png' | asset_url }}" alt="" width="120" height="120" loading="lazy">
           <div class="fuul-bundle__price-group">
-            <span class="fuul-bundle__price">{{ b3_total | money }}</span>
+            <span
+            class="fuul-bundle__price"
+            data-fuul-bundle-price
+            data-price-once="{{ b3_total | money }}"
+            data-price-plan="{{ b3_plan_total | money }}"
+          >{{ initial_b3_total | money }}</span>
             {%- if b3_has_serving -%}
               <span class="fuul-bundle__serving">
                 <img src="{{ 'fuul-leaf.svg' | asset_url }}" alt="" width="13" height="13">
-                {{ b3_serving_price | money }} {{ section.settings.serving_suffix }}
+                <span
+                  data-fuul-bundle-serving
+                  data-price-once="{{ b3_total | divided_by: b3_servings | money }}"
+                  data-price-plan="{{ b3_plan_total | divided_by: b3_servings | money }}"
+                >{{ b3_serving_price | money }}</span>
+                {{ section.settings.serving_suffix }}
               </span>
             {%- endif -%}
           </div>
         </label>
       </div>
 
-      {%- comment -%} ============ AUTOSHIP ============ {%- endcomment -%}
+      {%- comment -%}
+        ============ AUTOSHIP ============
+        Only rendered when the product genuinely has a selling plan. Without
+        one, "Subscribe & Save" would submit an empty selling_plan and quote a
+        discount the cart would never apply.
+      {%- endcomment -%}
+      {%- if uses_selling_plans -%}
       <h2 class="fuul-section-title">{{ section.settings.autoship_heading }}</h2>
       <div class="fuul-plans" role="radiogroup" aria-label="{{ section.settings.autoship_heading | escape }}">
 
@@ -370,6 +462,7 @@
           </ul>
         </div>
       </div>
+      {%- endif -%}
 
       {%- comment -%} ============ ADD TO CART ============ {%- endcomment -%}
       <product-form-component
@@ -382,7 +475,13 @@
         {%- form 'product', product, id: form_id, novalidate: 'novalidate', data-type: 'add-to-cart-form' -%}
           <input type="hidden" name="id" ref="variantId" value="{{ variant.id }}" data-fuul-variant {% unless variant.available %}disabled{% endunless %}>
           <input type="hidden" name="quantity" value="{{ b2_qty }}" data-fuul-quantity>
-          <input type="hidden" name="selling_plan" value="{{ first_plan.id }}" data-fuul-selling-plan>
+          {%- comment -%}
+            Omitted entirely when the product has no selling plan, rather than
+            posting an empty selling_plan to /cart/add.
+          {%- endcomment -%}
+          {%- if uses_selling_plans -%}
+            <input type="hidden" name="selling_plan" value="{{ first_plan.id }}" data-fuul-selling-plan>
+          {%- endif -%}
 
           <add-to-cart-component
             ref="addToCartButtonContainer"
@@ -408,7 +507,18 @@
       </product-form-component>
 
       {%- if section.settings.promo_bar != blank -%}
-        <div class="fuul-promo">{{ section.settings.promo_bar }}</div>
+        {%- comment -%}
+          The check mark is its own element because Figma sets it noticeably
+          smaller than the sentence (20px vs 32px desktop, 16px vs 26px mobile).
+          Left inside the richtext it would inherit the full text size, and CSS
+          cannot target a bare emoji character.
+        {%- endcomment -%}
+        <div class="fuul-promo">
+          <div class="fuul-promo__text">{{ section.settings.promo_bar }}</div>
+          {%- if section.settings.promo_icon != blank -%}
+            <span class="fuul-promo__icon" aria-hidden="true">{{ section.settings.promo_icon }}</span>
+          {%- endif -%}
+        </div>
       {%- endif -%}
 
       {%- comment -%} ============ TRUST BADGES ============ {%- endcomment -%}
@@ -626,12 +736,18 @@
 .fuul-cta:active { transform: translateY(1px); }
 .fuul-cta[disabled] { opacity: .5; cursor: not-allowed; }
 
+/* Figma node 1:276 — #fff2c6 pill, 14px radius, 14px inline padding, 52px tall.
+   Height comes from min-height + centring rather than vertical padding: Figma
+   trims the text box to cap height (13px), while a 32px Dongle line box at
+   line-height .8 is ~25.6px, so equal padding would overshoot 52px. */
 .fuul-promo {
   width: 100%; margin-top: 24px; background: var(--fuul-yellow-soft); color: var(--fuul-brown);
   border-radius: 14px; min-height: 52px; display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 32px; line-height: .8; text-align: center; padding: 12px 14px;
+  gap: 6px; text-align: center; padding: 6px 14px;
 }
-.fuul-promo p { margin: 0; }
+.fuul-promo__text { font-weight: 700; font-size: 32px; line-height: .8; }
+.fuul-promo__text p { margin: 0; }
+.fuul-promo__icon { flex: none; font-size: 20px; line-height: .8; }
 
 /* ---------- TRUST ---------- */
 .fuul-trust { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px; margin: 42px 0; }
@@ -664,6 +780,11 @@
   .fuul-info { max-width: 560px; margin: 0 auto; width: 100%; }
 }
 @media (max-width: 560px) {
+  /* Figma node 1:783 — 34px tall, 26px copy, 16px check mark. */
+  .fuul-promo { min-height: 34px; margin-top: 16px; padding: 6px 14px; }
+  .fuul-promo__text { font-size: 26px; }
+  .fuul-promo__icon { font-size: 16px; }
+
   .fuul-gallery { grid-template-columns: minmax(0, 1fr); }
   .fuul-gallery__thumbs {
     order: 2; flex-direction: row; overflow-x: auto; gap: 8px;
@@ -768,6 +889,25 @@
     // tabindex (only the checked radio is tabbable, arrows move within the group).
     var plans = Array.prototype.slice.call(root.querySelectorAll('[data-fuul-plan]'));
 
+    // Bundle cards must advertise the price for the plan that is actually
+    // selected — otherwise the card shows the one-time price while the form
+    // submits a selling_plan and the cart charges the subscription price.
+    // Both figures are pre-formatted by Liquid, so no money math happens here.
+    function syncBundlePrices(sellingPlanId) {
+      var suffix = sellingPlanId ? 'plan' : 'once';
+      root
+        .querySelectorAll('[data-fuul-bundle-price], [data-fuul-bundle-serving]')
+        .forEach(function (el) {
+          var next = el.getAttribute('data-price-' + suffix);
+          if (next) el.textContent = next;
+        });
+      root.querySelectorAll('[data-fuul-bundle-save]').forEach(function (el) {
+        var pct = parseInt(el.getAttribute('data-save-' + suffix) || '0', 10);
+        el.textContent = 'Save ' + pct + '%';
+        el.toggleAttribute('hidden', !(pct > 0));
+      });
+    }
+
     function selectPlan(el, focus) {
       plans.forEach(function (p) {
         var isSelected = p === el;
@@ -775,7 +915,9 @@
         p.setAttribute('aria-checked', isSelected ? 'true' : 'false');
         p.setAttribute('tabindex', isSelected ? '0' : '-1');
       });
-      if (sellingPlanInput) sellingPlanInput.value = el.getAttribute('data-selling-plan') || '';
+      var sellingPlanId = el.getAttribute('data-selling-plan') || '';
+      if (sellingPlanInput) sellingPlanInput.value = sellingPlanId;
+      syncBundlePrices(sellingPlanId);
       if (focus) el.focus();
     }
 
@@ -886,7 +1028,8 @@
     { "type": "textarea", "id": "once_perks", "label": "One-time notes (one per line)", "default": "No subscription discount\nNo automatic delivery" },
     { "type": "header", "content": "Add to cart" },
     { "type": "text", "id": "cta_text", "label": "Button text", "default": "Add To Cart" },
-    { "type": "richtext", "id": "promo_bar", "label": "Promo bar", "default": "<p>Limited Time Discount Auto-Applied ✅</p>" },
+    { "type": "richtext", "id": "promo_bar", "label": "Promo bar", "default": "<p>Limited Time Discount Auto-Applied</p>" },
+    { "type": "text", "id": "promo_icon", "label": "Promo bar icon", "info": "Shown after the text at a smaller size. Leave blank to hide.", "default": "✅" },
     { "type": "header", "content": "Trust badges" },
     { "type": "text", "id": "trust1", "label": "Badge 1", "default": "Ships Within 1 Business Day" },
     { "type": "text", "id": "trust2", "label": "Badge 2", "default": "Free Shipping Over $65" },

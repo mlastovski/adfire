@@ -20,12 +20,15 @@
   assign render_wrapper = render_wrapper | default: true, allow_false: true
 
   # Free-shipping threshold in cents. Matches the "$65 Goal" label in the design.
+  # Measured against the merchandise subtotal, which is what a shipping
+  # threshold applies to — not total_price, which moves with cart discounts.
   assign free_shipping_threshold = 6500
-  assign remaining_for_free_shipping = free_shipping_threshold | minus: cart.total_price
+  assign shipping_basis = cart.items_subtotal_price
+  assign remaining_for_free_shipping = free_shipping_threshold | minus: shipping_basis
   if remaining_for_free_shipping < 0
     assign remaining_for_free_shipping = 0
   endif
-  assign shipping_progress = cart.total_price | times: 100.0 | divided_by: free_shipping_threshold
+  assign shipping_progress = shipping_basis | times: 100.0 | divided_by: free_shipping_threshold
   if shipping_progress > 100
     assign shipping_progress = 100
   endif
@@ -72,9 +75,17 @@
     </div>
   {% endcapture %}
 
+  {%- comment -%}
+    always-modal — open via showModal() at every width, so the panel sits in the
+    top layer over the page and the native ::backdrop dims it, instead of the
+    default wide-viewport behaviour of squeezing the page aside.
+    no-persist  — a full-width modal should not reopen itself after navigation.
+  {%- endcomment -%}
   <theme-drawer
     id="cart-drawer"
     data-skip-node-update
+    always-modal
+    no-persist
   >
     <dialog
       ref="panel"
@@ -249,10 +260,22 @@
               {%- comment -%} ---------- summary + checkout ---------- {%- endcomment -%}
               <div class="fuul-cart-drawer__footer">
                 <div class="fuul-cart-drawer__summary">
+                  {%- comment -%}
+                    Subtotal is the merchandise total (items_subtotal_price);
+                    Estimated Total is what is actually charged (total_price).
+                    Rendering total_price for both made them always identical
+                    and hid any cart-level discount.
+                  {%- endcomment -%}
                   <div class="fuul-cart-drawer__summary-row">
                     <span>{{ 'content.cart_subtotal' | t }}</span>
-                    <span class="fuul-cart-drawer__summary-value">{{ cart.total_price | money }}</span>
+                    <span class="fuul-cart-drawer__summary-value">{{ cart.items_subtotal_price | money }}</span>
                   </div>
+                  {%- for discount in cart.cart_level_discount_applications -%}
+                    <div class="fuul-cart-drawer__summary-row fuul-cart-drawer__summary-row--discount">
+                      <span>{{ discount.title }}</span>
+                      <span class="fuul-cart-drawer__summary-value">-{{ discount.total_allocated_amount | money }}</span>
+                    </div>
+                  {%- endfor -%}
                   <div class="fuul-cart-drawer__summary-row">
                     <span>Shipping</span>
                     <span class="fuul-cart-drawer__summary-note">Calculated at checkout</span>
@@ -313,7 +336,12 @@
     --fuul-green: #8cb90e;
     --fuul-green-soft: #ecf2db;
     --fuul-muted: #907a79;
-    --theme-drawer-width: 420px;
+
+    /* Desktop keeps the mobile panel width from the design (Figma node 3:112 is
+       375 wide) and overlays the page, dimming it via ::backdrop — rather than
+       stretching full-bleed or squeezing the page aside. Narrow viewports go
+       edge-to-edge instead (see the responsive block below). */
+    --theme-drawer-width: 375px;
 
     /* Surfaces follow the palette selected in theme settings
        (:root --color-* from snippets/color-palette.liquid), so the drawer
@@ -326,6 +354,15 @@
     background: var(--fuul-cart-drawer-surface);
     color: var(--fuul-cart-drawer-text);
     font-family: 'Dongle', ui-rounded, 'Trebuchet MS', sans-serif;
+  }
+
+  /* Dim the page behind the drawer. Only a modal dialog renders ::backdrop,
+     which is why <theme-drawer> carries always-modal. The theme default
+     (--backdrop-opacity: 0.15) is a light scrim; the cart takes a stronger one.
+     Specificity beats the shared .theme-drawer__dialog::backdrop rule
+     regardless of stylesheet order. */
+  .theme-drawer__dialog.fuul-cart-drawer::backdrop {
+    background: rgb(0 0 0 / 45%);
   }
 
   .fuul-cart-drawer *,
@@ -783,6 +820,7 @@
 
   /* ---------- responsive ---------- */
   @media screen and (max-width: 749px) {
+    /* Edge-to-edge on phones: the 375px design frame is the whole screen. */
     .fuul-cart-drawer {
       --theme-drawer-width: 100%;
     }
